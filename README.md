@@ -1,9 +1,23 @@
 # Redmi Note 7 NetHunter Kernel Development Guide
 
-## Overview
-This comprehensive guide covers kernel development for the Xiaomi Redmi Note 7 (lavender) with NetHunter capabilities, targeting Android 13 Axion AOSP ROM.
+**Developer:** 0xb0rn3 | 0xbv1  
+**Repository:** [NETHUNTER_REDMINOTE7](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7)  
+**Public Instructions:** Available at the main repository README.md
 
-## Device Specifications
+## Overview
+This comprehensive guide covers kernel development for the Xiaomi Redmi Note 7 (lavender) with NetHunter capabilities, targeting Android 13 Axion AOSP ROM by 0xb0rn3.
+
+## Essential Resources
+
+### Official Downloads
+- **TWRP Recovery**: [TWRP-recovery-erofs-dynamic-partitions-230713.img](https://sourceforge.net/projects/lc-dev/files/lavender/TWRP-recovery-erofs-dynamic-partitions-230713.img/download)
+- **AxionOS Builds**: [GitHub Releases](https://github.com/Aeoniixx/Builds/releases/tag/AxionOS)
+- **NetHunter Kernel Project**: [0xb0rn3/NETHUNTER_REDMINOTE7](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7)
+
+### Key Repositories
+- **Kernel Source**: [Aeoniixx/kernel_xiaomi_lavender-4.19](https://github.com/Aeoniixx/kernel_xiaomi_lavender-4.19)
+- **NetHunter Builder**: [kali-nethunter-kernel-builder](https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-kernel-builder)
+- **Development Hub**: [0xb0rn3's Repository](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7)
 - **Codename**: lavender
 - **SoC**: Qualcomm SDM660 Snapdragon 660
 - **Architecture**: ARM64
@@ -65,8 +79,26 @@ sudo apt install -y git ccache automake flex lzop bison \
 ### Device Prerequisites
 - Unlocked bootloader
 - Root access (Magisk recommended)
-- Custom recovery (TWRP)
+- **Custom recovery**: [TWRP-recovery-erofs-dynamic-partitions-230713.img](https://sourceforge.net/projects/lc-dev/files/lavender/TWRP-recovery-erofs-dynamic-partitions-230713.img/download)
+- **Base ROM**: [AxionOS Android 13](https://github.com/Aeoniixx/Builds/releases/tag/AxionOS)
 - Backup of original kernel/boot image
+
+### TWRP Installation
+```bash
+# Download the specific TWRP build
+wget https://sourceforge.net/projects/lc-dev/files/lavender/TWRP-recovery-erofs-dynamic-partitions-230713.img/download -O twrp-lavender.img
+
+# Flash via fastboot
+fastboot flash recovery twrp-lavender.img
+fastboot boot twrp-lavender.img
+```
+
+### AxionOS Installation
+```bash
+# Download latest AxionOS build
+# Visit: https://github.com/Aeoniixx/Builds/releases/tag/AxionOS
+# Flash via TWRP following standard ROM flashing procedure
+```
 
 ## Phase 1: Environment Setup
 
@@ -117,14 +149,21 @@ git clone https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-ke
 cd kali-nethunter-kernel-builder
 ```
 
-### 3. Clone Kernel Source
+### 3. Clone Kernel Source (0xb0rn3's Project)
 ```bash
+# Clone the main NetHunter project repository
+git clone https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7.git
+cd NETHUNTER_REDMINOTE7
+
 # Clone the Aeoniixx kernel source
 git clone https://github.com/Aeoniixx/kernel_xiaomi_lavender-4.19.git -b main
 cd kernel_xiaomi_lavender-4.19
 
 # Verify the defconfig exists
 ls arch/arm64/configs/ | grep lavender
+
+# Check for 0xb0rn3's modifications
+git log --oneline -10  # Check recent commits
 ```
 
 ## Phase 2: Kernel Configuration
@@ -369,22 +408,32 @@ ramdisk_compression=auto
 
 ### 1. Pre-Installation Backup
 ```bash
-# Boot into TWRP
-# Backup current boot partition
-# Create NANDroid backup
+# Boot into TWRP (the specific erofs-dynamic-partitions build)
+# Download: https://sourceforge.net/projects/lc-dev/files/lavender/TWRP-recovery-erofs-dynamic-partitions-230713.img/download
+
+# Create comprehensive backup
+# - Boot partition (current kernel)
+# - System partition
+# - Data partition
+# - Vendor partition (if applicable)
+# - Create NANDroid backup
 ```
 
 ### 2. Flash Custom Kernel
 ```bash
 # Transfer kernel zip to device
+adb push kernel-nethunter-lavender.zip /sdcard/
+
 # Flash via TWRP
-# Wipe cache/dalvik
-# Reboot system
+# - Install -> Select kernel zip
+# - Swipe to confirm flash
+# - Wipe cache/dalvik
+# - Reboot system
 ```
 
-### 3. Verification
+### 3. Verification on AxionOS
 ```bash
-# Check kernel version
+# Check kernel version (should show 0xb0rn3's modifications)
 cat /proc/version
 
 # Verify NetHunter features
@@ -392,8 +441,12 @@ ls /sys/kernel/config/usb_gadget/
 dmesg | grep -i nethunter
 
 # Test HID functionality
-echo "echo 'NetHunter Test' > /dev/hidg0" > /data/local/tmp/test_hid.sh
+echo "echo 'NetHunter by 0xb0rn3' > /dev/hidg0" > /data/local/tmp/test_hid.sh
 chmod 755 /data/local/tmp/test_hid.sh
+
+# Check AxionOS compatibility
+getprop ro.build.version.release  # Should show 13
+getprop ro.build.display.id       # Should show AxionOS info
 ```
 
 ## Arch Linux Specific Advantages
@@ -647,20 +700,29 @@ git tag -a v1.0-nethunter -m "NetHunter kernel v1.0"
 git push origin v1.0-nethunter
 ```
 
-## Conclusion
+## Credits and Community
 
-This comprehensive guide provides the foundation for developing a custom NetHunter kernel for the Redmi Note 7. The kernel includes essential NetHunter features like HID keyboard support, wireless monitor mode, and packet injection capabilities.
+### Development Team
+- **Lead Developer**: 0xb0rn3 | 0xbv1
+- **Kernel Source**: Aeoniixx (AxionOS maintainer)
+- **Base ROM**: AxionOS Team
+- **TWRP**: lc-dev team
 
-Key success factors:
-- Proper build environment setup
-- Correct kernel source and patches
-- Thorough testing and verification
-- Regular maintenance and updates
+### Community Resources
+- **Main Repository**: [0xb0rn3/NETHUNTER_REDMINOTE7](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7)
+- **Public Instructions**: Available in the repository README.md
+- **AxionOS Support**: [Aeoniixx Builds](https://github.com/Aeoniixx/Builds)
+- **TWRP Support**: [lc-dev SourceForge](https://sourceforge.net/projects/lc-dev/)
 
-For additional support, refer to:
-- Kali NetHunter documentation
-- XDA Developers forums
-- GitHub repositories and issue trackers
-- Community Discord/Telegram groups
+### Support and Contributions
+- Report issues on the [GitHub repository](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7/issues)
+- Follow development updates on the repository
+- Contribute to the project through pull requests
+- Join community discussions for troubleshooting
 
-Remember to always backup your device before flashing custom kernels and test thoroughly in a safe environment.
+### Legal Notice
+This project is for educational and research purposes only. Users are responsible for complying with local laws and regulations. The developers are not responsible for any misuse of this software.
+
+---
+
+**© 2025 0xb0rn3 | 0xbv1 - NetHunter Kernel for Redmi Note 7**
