@@ -1,728 +1,424 @@
-# Redmi Note 7 NetHunter Kernel Development Guide
+# NetHunter Kernel Compilation Guide for Xiaomi Redmi Note 7 (Lavender)
 
-**Developer:** 0xb0rn3 | 0xbv1  
-**Repository:** [NETHUNTER_REDMINOTE7](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7)  
-**Public Instructions:** Available at the main repository README.md
+> **Complete step-by-step guide for compiling NetHunter kernel on Linux distributions**
 
-## Overview
-This comprehensive guide covers kernel development for the Xiaomi Redmi Note 7 (lavender) with NetHunter capabilities, targeting Android 13 Axion AOSP ROM by 0xb0rn3.
+## 📋 Device Information
 
-## Essential Resources
+- **Device**: Xiaomi Redmi Note 7 (lavender)
+- **Architecture**: ARM64 (arm64-v8a)
+- **Android Version**: 15
+- **Target Kernel**: Linux 4.19.321 (NetHunter Compatible)
+- **Bootloader**: Unlocked (Required)
+- **Root**: Required for flashing
 
-### Official Downloads
-- **TWRP Recovery**: [TWRP-recovery-erofs-dynamic-partitions-230713.img](https://sourceforge.net/projects/lc-dev/files/lavender/TWRP-recovery-erofs-dynamic-partitions-230713.img/download)
-- **AxionOS Builds**: [GitHub Releases](https://github.com/Aeoniixx/Builds/releases/tag/AxionOS)
-- **NetHunter Kernel Project**: [0xb0rn3/NETHUNTER_REDMINOTE7](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7)
-
-### Key Repositories
-- **Kernel Source**: [Aeoniixx/kernel_xiaomi_lavender-4.19](https://github.com/Aeoniixx/kernel_xiaomi_lavender-4.19)
-- **NetHunter Builder**: [kali-nethunter-kernel-builder](https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-kernel-builder)
-- **Development Hub**: [0xb0rn3's Repository](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7)
-- **Codename**: lavender
-- **SoC**: Qualcomm SDM660 Snapdragon 660
-- **Architecture**: ARM64
-- **Target Android**: 13 (Axion AOSP)
-- **Kernel Version**: 4.19 (CAF-based)
-
-## Prerequisites
+## 🔧 Prerequisites
 
 ### System Requirements
-- Linux build environment (Arch Linux, Ubuntu 18.04+, or similar)
-- Minimum 16GB RAM, 100GB+ free storage
-- Stable internet connection for downloading sources
+- **RAM**: Minimum 8GB (16GB recommended)
+- **Storage**: At least 50GB free space
+- **CPU**: Multi-core processor (8+ cores recommended)
+- **Internet**: Stable connection for downloading sources
 
 ### Required Tools
+- Git
+- Make
+- GCC/Clang toolchain
+- Python 3.x
+- Java 8 or 11
+- ADB and Fastboot
+- Custom recovery (TWRP recommended)
 
-#### For Arch Linux (Recommended)
+## 🐧 Distribution-Specific Setup
+
+### Arch Linux / Archcraft
 ```bash
 # Update system
 sudo pacman -Syu
 
-# Install base development tools
-sudo pacman -S base-devel git ccache automake flex lzop bison \
-    gperf zip curl zlib python python-networkx libxml2 bzip2 \
-    squashfs-tools pngcrush schedtool lz4 make optipng maven \
-    openssl pwgen perl-switch policycoreutils minicom \
-    perl-xml-sax-base perl-xml-simple bc lib32-ncurses \
-    libx11 lib32-zlib mesa xsltproc unzip fontconfig
+# Install build dependencies
+sudo pacman -S base-devel git python python-pip bc openssl \
+               android-tools java-runtime-headless clang llvm \
+               lld make cmake ninja zip unzip curl wget
 
-# Install multilib support (for 32-bit libraries)
-sudo pacman -S lib32-gcc-libs lib32-glibc lib32-zlib lib32-ncurses
-
-# Install AUR helper (yay) for additional packages
-sudo pacman -S --needed git base-devel
+# Install AUR helper if needed (yay)
 git clone https://aur.archlinux.org/yay.git
-cd yay
-makepkg -si
+cd yay && makepkg -si
 cd ..
-rm -rf yay
 
 # Install additional tools from AUR
-yay -S android-tools android-udev
+yay -S android-sdk-build-tools android-platform-tools
 ```
 
-#### For Ubuntu/Debian
+### Ubuntu/Debian
 ```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
 # Install build dependencies
-sudo apt update
-sudo apt install -y git ccache automake flex lzop bison \
-    gperf build-essential zip curl zlib1g-dev g++-multilib \
-    python3-networkx libxml2-utils bzip2 libbz2-dev \
-    libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush \
-    schedtool dpkg-dev liblz4-tool make optipng maven \
-    libssl-dev pwgen libswitch-perl policycoreutils \
-    minicom libxml-sax-base-perl libxml-simple-perl bc \
-    libc6-dev-i386 lib32ncurses5-dev libx11-dev lib32z-dev \
-    libgl1-mesa-dev xsltproc unzip fontconfig
+sudo apt install -y build-essential git python3 python3-pip bc \
+                   libssl-dev libncurses5-dev libelf-dev bison \
+                   flex make cmake ninja-build zip unzip curl wget \
+                   clang llvm lld adb fastboot default-jdk
+
+# Install additional Android tools
+sudo apt install -y android-sdk-build-tools-installer
 ```
 
-### Device Prerequisites
-- Unlocked bootloader
-- Root access (Magisk recommended)
-- **Custom recovery**: [TWRP-recovery-erofs-dynamic-partitions-230713.img](https://sourceforge.net/projects/lc-dev/files/lavender/TWRP-recovery-erofs-dynamic-partitions-230713.img/download)
-- **Base ROM**: [AxionOS Android 13](https://github.com/Aeoniixx/Builds/releases/tag/AxionOS)
-- Backup of original kernel/boot image
-
-### TWRP Installation
+### Fedora/RHEL/CentOS
 ```bash
-# Download the specific TWRP build
-wget https://sourceforge.net/projects/lc-dev/files/lavender/TWRP-recovery-erofs-dynamic-partitions-230713.img/download -O twrp-lavender.img
+# Update system
+sudo dnf update -y
 
-# Flash via fastboot
-fastboot flash recovery twrp-lavender.img
-fastboot boot twrp-lavender.img
+# Install build dependencies
+sudo dnf install -y @development-tools git python3 python3-pip bc \
+                   openssl-devel ncurses-devel elfutils-libelf-devel \
+                   bison flex make cmake ninja-build zip unzip curl wget \
+                   clang llvm lld android-tools java-11-openjdk-devel
+
+# Enable additional repositories if needed
+sudo dnf install -y epel-release
 ```
 
-### AxionOS Installation
+### openSUSE
 ```bash
-# Download latest AxionOS build
-# Visit: https://github.com/Aeoniixx/Builds/releases/tag/AxionOS
-# Flash via TWRP following standard ROM flashing procedure
+# Update system
+sudo zypper update
+
+# Install build dependencies
+sudo zypper install -y patterns-devel-base-devel_basis git python3 \
+                      python3-pip bc openssl-devel ncurses-devel \
+                      libelf-devel bison flex make cmake ninja zip \
+                      unzip curl wget clang llvm lld android-tools \
+                      java-11-openjdk-devel
 ```
 
-## Phase 1: Environment Setup
+## 📦 Download Sources
 
-### 1. Create Build Directory
+### 1. Clone NetHunter Kernel Builder
 ```bash
-mkdir -p ~/android/kernel
-cd ~/android/kernel
+# Create workspace directory
+mkdir -p ~/nethunter-build
+cd ~/nethunter-build
+
+# Clone the main kernel builder
+git clone https://github.com/offensive-security/kali-nethunter-kernel.git
+cd kali-nethunter-kernel
+
+# Make scripts executable
+chmod +x build.sh
+chmod +x bootstrap.sh
 ```
 
-### 2. Set up Build Environment (Arch Linux specific optimizations)
+### 2. Clone Device Kernel Source
 ```bash
-# Configure ccache for faster builds
-export USE_CCACHE=1
-export CCACHE_DIR="$HOME/.ccache"
-ccache -M 50G  # Set cache size to 50GB
-
-# Set up environment variables
-export ARCH=arm64
-export SUBARCH=arm64
-export CROSS_COMPILE=aarch64-linux-gnu-
-export KBUILD_BUILD_USER=nethunter
-export KBUILD_BUILD_HOST=archlinux
-
-# Add to ~/.bashrc or ~/.zshrc for persistence
-echo 'export USE_CCACHE=1' >> ~/.bashrc
-echo 'export CCACHE_DIR="$HOME/.ccache"' >> ~/.bashrc
-echo 'export ARCH=arm64' >> ~/.bashrc
-echo 'export SUBARCH=arm64' >> ~/.bashrc
-echo 'export CROSS_COMPILE=aarch64-linux-gnu-' >> ~/.bashrc
+# Clone the Redmi Note 7 kernel source
+git clone https://github.com/ImSpiDy/kernel_xiaomi_lavender.git -b lineage-18.1 kernel_source
 ```
 
-### 3. Install Cross-Compilation Toolchain
+### 3. Download Android NDK and Toolchain
 ```bash
-# For Arch Linux - install from official repos
-sudo pacman -S aarch64-linux-gnu-gcc aarch64-linux-gnu-binutils
+# Download Android NDK (if not already installed)
+cd ~/nethunter-build
+wget https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
+unzip android-ndk-r26d-linux.zip
+export ANDROID_NDK_HOME=~/nethunter-build/android-ndk-r26d
 
-# Alternative: Download Google's prebuilt toolchain
-mkdir -p ~/toolchains
-cd ~/toolchains
-wget https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/master.tar.gz
-tar -xzf master.tar.gz
-export PATH="$HOME/toolchains/bin:$PATH"
+# Alternative: Use system clang
+export CC=clang
+export CXX=clang++
+export AR=llvm-ar
+export NM=llvm-nm
+export STRIP=llvm-strip
+export OBJCOPY=llvm-objcopy
+export OBJDUMP=llvm-objdump
+export READELF=llvm-readelf
 ```
 
-### 4. Clone NetHunter Kernel Builder
+## ⚙️ Configuration
+
+### 1. Create Device Configuration
 ```bash
-git clone https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-kernel-builder.git
-cd kali-nethunter-kernel-builder
-```
+cd ~/nethunter-build/kali-nethunter-kernel
 
-### 3. Clone Kernel Source (0xb0rn3's Project)
-```bash
-# Clone the main NetHunter project repository
-git clone https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7.git
-cd NETHUNTER_REDMINOTE7
-
-# Clone the Aeoniixx kernel source
-git clone https://github.com/Aeoniixx/kernel_xiaomi_lavender-4.19.git -b main
-cd kernel_xiaomi_lavender-4.19
-
-# Verify the defconfig exists
-ls arch/arm64/configs/ | grep lavender
-
-# Check for 0xb0rn3's modifications
-git log --oneline -10  # Check recent commits
-```
-
-## Phase 2: Kernel Configuration
-
-### 1. Create Build Configuration
-```bash
-cd ~/android/kernel/kali-nethunter-kernel-builder
-cp config local.config
-nano local.config
-```
-
-### 2. Configure Build Settings
-Edit `local.config` with the following parameters:
-
-```bash
-# Device Configuration
-KERNEL_DIR="/home/$USER/android/kernel/kernel_xiaomi_lavender-4.19"
-DEFCONFIG="lavender_defconfig"
+# Create local.config for lavender
+cat > local.config << 'EOF'
+# Device configuration for Xiaomi Redmi Note 7 (lavender)
 DEVICE_NAME="lavender"
-CODENAME="lavender"
-
-# Architecture Settings
-ARCH="arm64"
-SUBARCH="arm64"
+KERNEL_SOURCE="~/nethunter-build/kernel_source"
+KERNEL_ARCH="arm64"
+KERNEL_DEFCONFIG="lavender_defconfig"
 CROSS_COMPILE="aarch64-linux-android-"
-
-# Build Configuration
-JOBS=$(nproc)
-CCACHE_DIR="/tmp/ccache"
-USE_CCACHE=1
-
-# NetHunter Specific
+CLANG_TRIPLE="aarch64-linux-gnu-"
+ANDROID_MAJOR_VERSION="11"
+ANDROID_MINOR_VERSION="0"
+ANDROID_VERSION="11.0"
 KERNEL_LOCALVERSION="-NetHunter"
-KERNEL_PATCHES="y"
-HID_KEYBOARD="y"
-WIRELESS_INJECTION="y"
+THREADS=$(nproc)
+ENABLE_WIFI_INJECTION=true
+ENABLE_USB_HID=true
+ENABLE_BLUETOOTH_INJECTION=true
+ENABLE_RTL8188EU=true
+ENABLE_RTL8812AU=true
+ENABLE_RTL8814AU=true
+ENABLE_MT7612U=true
+ENABLE_ATH9K_HTK=true
+ENABLE_USB_SERIAL=true
+MODULES_COMPRESSION=xz
+EOF
 ```
 
-### 3. NetHunter Kernel Patches
-Essential patches for NetHunter functionality:
-
-#### USB HID Keyboard Support
-```c
-// Enable in kernel config
-CONFIG_USB_GADGET=y
-CONFIG_USB_CONFIGFS=y
-CONFIG_USB_CONFIGFS_F_HID=y
-CONFIG_HIDRAW=y
-CONFIG_USB_GADGET_VBUS_DRAW=500
-```
-
-#### Wireless Injection Support
-```c
-// Enable monitor mode and packet injection
-CONFIG_MAC80211_MESH=y
-CONFIG_CFG80211_WEXT=y
-CONFIG_WIRELESS_EXT=y
-CONFIG_WEXT_PRIV=y
-CONFIG_NETFILTER_XT_MATCH_STATE=y
-```
-
-## Phase 3: Advanced Kernel Modifications
-
-### 1. Security Enhancements
-```c
-// Add to defconfig for enhanced security
-CONFIG_SECURITY_SELINUX_BOOTPARAM=y
-CONFIG_SECURITY_SELINUX_DISABLE=y
-CONFIG_SECURITY_SELINUX_DEVELOP=y
-CONFIG_SECURITY_SELINUX_AVC_STATS=y
-```
-
-### 2. Performance Optimizations
-```c
-// CPU Governor and Scheduler tweaks
-CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
-CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
-CONFIG_CPU_FREQ_GOV_ONDEMAND=y
-CONFIG_SCHED_WALT=y
-CONFIG_SCHED_TUNE=y
-```
-
-### 3. Memory Management
-```c
-// Enhanced memory management
-CONFIG_MEMCG=y
-CONFIG_MEMCG_SWAP=y
-CONFIG_MEMCG_KMEM=y
-CONFIG_CGROUP_HUGETLB=y
-CONFIG_TRANSPARENT_HUGEPAGE=y
-```
-
-## Phase 4: Compilation Process
-
-### 1. Initialize Build Environment
+### 2. Configure Kernel Options
 ```bash
-cd ~/android/kernel/kali-nethunter-kernel-builder
-./build.sh
-```
+# Navigate to kernel source
+cd ~/nethunter-build/kernel_source
 
-### 2. Setup Environment (First Time)
-```bash
-# Select option 'S' for setup
-# This installs required toolchains
-```
-
-### 3. Configure and Compile
-```bash
-# Select option '2' - Configure & compile kernel from scratch
-# Choose your defconfig when prompted
-# Apply NetHunter patches when asked
-```
-
-### 4. Manual Compilation (Arch Linux Optimized)
-```bash
-cd ~/android/kernel/kernel_xiaomi_lavender-4.19
-
-# Set environment variables (if not in bashrc)
+# Set environment variables
 export ARCH=arm64
 export SUBARCH=arm64
-export CROSS_COMPILE=aarch64-linux-gnu-
-export KBUILD_BUILD_USER=nethunter
-export KBUILD_BUILD_HOST=archlinux
+export CROSS_COMPILE=aarch64-linux-android-
+export CC=clang
+export CXX=clang++
+export CLANG_TRIPLE=aarch64-linux-gnu-
 
-# Configure kernel
+# Generate .config from defconfig
 make lavender_defconfig
-make menuconfig  # For custom configuration
 
-# Compile kernel with optimal settings for Arch
-make -j$(nproc --all) \
+# Optional: Manual configuration
+make menuconfig
+```
+
+## 🔨 Compilation Process
+
+### 1. Apply NetHunter Patches
+```bash
+cd ~/nethunter-build/kali-nethunter-kernel
+
+# Run bootstrap to prepare environment
+./bootstrap.sh
+
+# Apply NetHunter patches
+./build.sh --patch-only --device lavender
+```
+
+### 2. Build Kernel
+```bash
+# Build the kernel with NetHunter patches
+./build.sh --device lavender --kernel-only
+
+# Alternative manual build
+cd ~/nethunter-build/kernel_source
+make -j$(nproc) \
     ARCH=arm64 \
     SUBARCH=arm64 \
-    CROSS_COMPILE=aarch64-linux-gnu- \
-    KCFLAGS="-O3 -pipe -fno-plt" \
-    KCPPFLAGS="-O3 -pipe -fno-plt" \
-    2>&1 | tee build.log
-
-# Alternative with clang (if available)
-make -j$(nproc --all) \
-    ARCH=arm64 \
-    SUBARCH=arm64 \
-    CROSS_COMPILE=aarch64-linux-gnu- \
+    CROSS_COMPILE=aarch64-linux-android- \
     CC=clang \
-    HOSTCC=clang \
+    CXX=clang++ \
     CLANG_TRIPLE=aarch64-linux-gnu- \
-    2>&1 | tee build_clang.log
+    Image.gz-dtb
 ```
 
-## Phase 5: Custom Kernel Features
-
-### 1. NetHunter HID Implementation
-Create custom HID functionality:
-
-```c
-// drivers/hid/hid-nethunter.c
-#include <linux/hid.h>
-#include <linux/module.h>
-#include <linux/usb.h>
-
-// HID keyboard descriptor for NetHunter
-static const char keyboard_descriptor[] = {
-    0x05, 0x01,  // Usage Page (Generic Desktop)
-    0x09, 0x06,  // Usage (Keyboard)
-    0xa1, 0x01,  // Collection (Application)
-    // ... (full HID descriptor)
-};
-
-// NetHunter HID driver implementation
-static struct hid_driver nethunter_hid_driver = {
-    .name = "nethunter-hid",
-    .id_table = nethunter_hid_devices,
-    .probe = nethunter_hid_probe,
-    .remove = nethunter_hid_remove,
-};
-
-module_hid_driver(nethunter_hid_driver);
-```
-
-### 2. Wireless Monitor Mode
-Enable monitor mode for wireless interfaces:
-
-```c
-// net/wireless/nl80211.c modifications
-static int nl80211_set_interface(struct sk_buff *skb, struct genl_info *info)
-{
-    // Add monitor mode support
-    if (type == NL80211_IFTYPE_MONITOR) {
-        // Enable monitor mode functionality
-        return cfg80211_change_iface(rdev, dev, type, flags, &params);
-    }
-    // ... rest of function
-}
-```
-
-### 3. Packet Injection Support
-```c
-// drivers/net/wireless/*/cfg80211.c
-static int nethunter_inject_frame(struct wiphy *wiphy,
-                                  struct wireless_dev *wdev,
-                                  struct cfg80211_mgmt_tx_params *params,
-                                  u64 *cookie)
-{
-    // Custom packet injection implementation
-    // Bypass normal wireless stack restrictions
-    return 0;
-}
-```
-
-## Phase 6: AnyKernel Integration
-
-### 1. Create AnyKernel Configuration
+### 3. Build Modules
 ```bash
-cd ~/android/kernel/kali-nethunter-kernel-builder
-./build.sh
-# Select option '8' - Edit Anykernel config
+# Build kernel modules
+make -j$(nproc) \
+    ARCH=arm64 \
+    SUBARCH=arm64 \
+    CROSS_COMPILE=aarch64-linux-android- \
+    CC=clang \
+    CXX=clang++ \
+    CLANG_TRIPLE=aarch64-linux-gnu- \
+    modules
+
+# Install modules to temporary directory
+mkdir -p ~/nethunter-build/modules
+make -j$(nproc) \
+    ARCH=arm64 \
+    SUBARCH=arm64 \
+    CROSS_COMPILE=aarch64-linux-android- \
+    CC=clang \
+    CXX=clang++ \
+    CLANG_TRIPLE=aarch64-linux-gnu- \
+    INSTALL_MOD_PATH=~/nethunter-build/modules \
+    modules_install
 ```
 
-### 2. Configure AnyKernel Settings
+### 4. Create Flashable ZIP
 ```bash
-# Edit anykernel.sh
-device.name1=lavender
-device.name2=Redmi Note 7
-device.name3=
-device.name4=
-device.name5=
+cd ~/nethunter-build/kali-nethunter-kernel
 
-supported.versions=13
-supported.patchlevels=
+# Create complete NetHunter package
+./build.sh --device lavender --full
 
-block=/dev/block/bootdevice/by-name/boot
-is_slot_device=0
-ramdisk_compression=auto
+# Output will be in releases/ directory
+ls -la releases/
 ```
 
-### 3. Generate Flashable ZIP
+## 📱 Device Preparation
+
+### 1. Unlock Bootloader
 ```bash
-# Select option '6' - Create Anykernel zip
-# This creates the flashable kernel zip
+# Enable Developer Options and USB Debugging
+# Enable OEM unlocking in Developer Options
+# Boot to fastboot mode
+adb reboot bootloader
+
+# Unlock bootloader (THIS WILL WIPE DATA)
+fastboot oem unlock
+# OR
+fastboot flashing unlock
 ```
 
-## Phase 7: Installation and Testing
-
-### 1. Pre-Installation Backup
+### 2. Install Custom Recovery
 ```bash
-# Boot into TWRP (the specific erofs-dynamic-partitions build)
-# Download: https://sourceforge.net/projects/lc-dev/files/lavender/TWRP-recovery-erofs-dynamic-partitions-230713.img/download
+# Download TWRP for lavender
+wget https://dl.twrp.me/lavender/twrp-3.7.0_9-0-lavender.img
 
-# Create comprehensive backup
-# - Boot partition (current kernel)
-# - System partition
-# - Data partition
-# - Vendor partition (if applicable)
-# - Create NANDroid backup
+# Flash TWRP
+fastboot flash recovery twrp-3.7.0_9-0-lavender.img
+
+# Boot to recovery
+fastboot boot twrp-3.7.0_9-0-lavender.img
 ```
 
-### 2. Flash Custom Kernel
-```bash
-# Transfer kernel zip to device
-adb push kernel-nethunter-lavender.zip /sdcard/
+## 🚀 Installation
 
-# Flash via TWRP
-# - Install -> Select kernel zip
-# - Swipe to confirm flash
-# - Wipe cache/dalvik
-# - Reboot system
+### 1. Flash NetHunter Kernel
+```bash
+# Copy the built ZIP to device
+adb push releases/kali-nethunter-kernel-lavender-*.zip /sdcard/
+
+# In TWRP:
+# 1. Wipe -> Advanced Wipe -> Dalvik/ART Cache
+# 2. Install -> Select the NetHunter kernel ZIP
+# 3. Flash and reboot
 ```
 
-### 3. Verification on AxionOS
+### 2. Install NetHunter App
 ```bash
-# Check kernel version (should show 0xb0rn3's modifications)
-cat /proc/version
+# Download NetHunter App
+wget https://kali.org/get-kali/kali-nethunter/images/nethunter-app.apk
 
-# Verify NetHunter features
-ls /sys/kernel/config/usb_gadget/
-dmesg | grep -i nethunter
-
-# Test HID functionality
-echo "echo 'NetHunter by 0xb0rn3' > /dev/hidg0" > /data/local/tmp/test_hid.sh
-chmod 755 /data/local/tmp/test_hid.sh
-
-# Check AxionOS compatibility
-getprop ro.build.version.release  # Should show 13
-getprop ro.build.display.id       # Should show AxionOS info
+# Install via ADB
+adb install nethunter-app.apk
 ```
 
-## Arch Linux Specific Advantages
-
-### 1. Rolling Release Benefits
+### 3. Install Kali Chroot
 ```bash
-# Always get latest build tools
-sudo pacman -Syu
+# Download appropriate chroot
+wget https://kali.org/get-kali/kali-nethunter/images/kalifs-arm64-minimal.tar.xz
 
-# Access to cutting-edge development tools
-sudo pacman -S clang lld llvm
+# Copy to device
+adb push kalifs-arm64-minimal.tar.xz /sdcard/
 
-# Latest kernel headers for reference
-sudo pacman -S linux-headers
+# Install through NetHunter App
+# Open NetHunter App -> Kali Chroot Manager -> Install Chroot
 ```
 
-### 2. AUR Package Benefits
-```bash
-# Install Android development tools from AUR
-yay -S android-studio android-sdk android-sdk-platform-tools
-yay -S repo-git  # For AOSP development
+## 🔍 Verification
 
-# Install additional cross-compilation tools
-yay -S arm-linux-gnueabihf-gcc
-yay -S aarch64-linux-gnu-gdb  # For debugging
+### 1. Check Kernel Version
+```bash
+# Check if NetHunter kernel is loaded
+adb shell cat /proc/version
+
+# Should show NetHunter in version string
 ```
 
-### 3. Optimized Build Configuration
+### 2. Test NetHunter Features
 ```bash
-# Create optimized makepkg.conf for kernel building
-sudo cp /etc/makepkg.conf /etc/makepkg.conf.backup
-sudo nano /etc/makepkg.conf
+# Check wireless injection capability
+adb shell iwconfig
 
-# Add these optimizations:
-# CFLAGS="-march=native -O3 -pipe -fno-plt"
-# CXXFLAGS="${CFLAGS}"
-# MAKEFLAGS="-j$(nproc)"
-# BUILDENV=(!distcc !color ccache check !sign)
+# Check USB HID support
+adb shell ls /dev/hidg*
+
+# Test in NetHunter App
+# HID Attacks should be available
+# Wireless tools should work
 ```
 
-### 4. Performance Monitoring
+## 🐛 Troubleshooting
+
+### Common Build Errors
+
+#### 1. Missing Dependencies
 ```bash
-# Install performance monitoring tools
-sudo pacman -S htop iotop nethogs powertop
+# Error: command not found
+# Solution: Install missing packages for your distribution
 
-# Monitor build process
-htop &
-iotop -o &
-# Then run your kernel build
-```
+# For Arch Linux
+sudo pacman -S missing-package
 
-## Phase 8: Troubleshooting
-
-### Arch Linux Specific Issues
-
-#### 1. Missing 32-bit Libraries
-```bash
-# Enable multilib repository
-sudo nano /etc/pacman.conf
-# Uncomment these lines:
-# [multilib]
-# Include = /etc/pacman.d/mirrorlist
-
-sudo pacman -Syu
-sudo pacman -S lib32-gcc-libs lib32-glibc lib32-zlib
+# For Ubuntu/Debian
+sudo apt install missing-package
 ```
 
 #### 2. Toolchain Issues
 ```bash
-# If aarch64-linux-gnu-gcc not found
-sudo pacman -S aarch64-linux-gnu-gcc
-
-# Alternative: Use Android NDK
-yay -S android-ndk
-export CROSS_COMPILE=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-
+# Error: cross-compiler not found
+# Solution: Set correct paths
+export PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+export CROSS_COMPILE=aarch64-linux-android30-
 ```
 
-#### 3. Build Optimization Issues
+#### 3. Build Fails
 ```bash
-# If build fails with optimization flags
-export KCFLAGS="-O2"  # Reduce optimization level
-export KCPPFLAGS="-O2"
-
-# Disable specific optimizations that might cause issues
-export KCFLAGS="-O2 -fno-strict-aliasing"
-```
-
-#### 1. Compilation Errors
-```bash
-# Check build log
-tail -n 100 build.log
-
-# Common fixes
+# Clean build directory
+cd ~/nethunter-build/kernel_source
 make clean
 make mrproper
+
+# Rebuild
 make lavender_defconfig
+make -j$(nproc)
 ```
 
-#### 2. Boot Issues
-```bash
-# Check dmesg for errors
-dmesg | grep -i error
+### Boot Issues
 
-# Verify kernel modules
-lsmod | grep -i nethunter
-```
+#### 1. Bootloop
+- Flash stock kernel
+- Check if bootloader is properly unlocked
+- Verify TWRP compatibility
 
-#### 3. NetHunter Features Not Working
-```bash
-# Check USB gadget configuration
-ls /sys/kernel/config/usb_gadget/
+#### 2. No NetHunter Features
+- Verify kernel patches were applied
+- Check module loading
+- Reinstall NetHunter App
 
-# Verify HID devices
-ls /dev/hidg*
+## 📚 Additional Resources
 
-# Check wireless capabilities
-iw list | grep -i monitor
-```
-
-## Advanced Customization
-
-### 1. CPU Frequency Scaling
-```c
-// Add custom governor
-static struct cpufreq_governor nethunter_gov = {
-    .name = "nethunter",
-    .governor = cpufreq_governor_nethunter,
-    .owner = THIS_MODULE,
-};
-```
-
-### 2. I/O Schedulers
-```c
-// Custom I/O scheduler for performance
-static struct elevator_type nethunter_iosched = {
-    .ops = {
-        .elevator_merge_fn = nethunter_merge,
-        .elevator_dispatch_fn = nethunter_dispatch,
-        .elevator_add_req_fn = nethunter_add_request,
-        .elevator_former_req_fn = nethunter_former_request,
-        .elevator_latter_req_fn = nethunter_latter_request,
-        .elevator_init_fn = nethunter_init_queue,
-        .elevator_exit_fn = nethunter_exit_queue,
-    },
-    .elevator_name = "nethunter",
-    .elevator_owner = THIS_MODULE,
-};
-```
-
-### 3. Security Bypass Features
-```c
-// SELinux permissive mode toggle
-static ssize_t selinux_enforce_write(struct file *file, const char __user *buf,
-                                     size_t count, loff_t *ppos)
-{
-    // Allow runtime SELinux mode changes
-    if (new_value == 0) {
-        selinux_enforcing = 0;
-        printk(KERN_INFO "NetHunter: SELinux set to permissive\n");
-    }
-    return count;
-}
-```
-
-## Performance Optimization
-
-### 1. Kernel Parameter Tuning
-```bash
-# Add to init.d script
-echo "performance" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-echo "1" > /proc/sys/vm/drop_caches
-echo "60" > /proc/sys/vm/swappiness
-```
-
-### 2. Memory Management
-```c
-// Custom memory allocator
-static void *nethunter_alloc(size_t size, gfp_t flags)
-{
-    void *ptr = kmalloc(size, flags | __GFP_ZERO);
-    if (ptr) {
-        // Custom memory management logic
-    }
-    return ptr;
-}
-```
-
-## Kernel Debugging
-
-### 1. Enable Kernel Debugging
-```c
-// Add to defconfig
-CONFIG_DEBUG_KERNEL=y
-CONFIG_DEBUG_INFO=y
-CONFIG_FRAME_POINTER=y
-CONFIG_KGDB=y
-CONFIG_KGDB_SERIAL_CONSOLE=y
-```
-
-### 2. Debugging Tools
-```bash
-# Use kernel debugging
-echo "file nethunter.c +p" > /sys/kernel/debug/dynamic_debug/control
-
-# Monitor kernel messages
-dmesg -w | grep -i nethunter
-
-# Use systrace for performance analysis
-systrace.py --time=10 -o trace.html sched gfx view wm
-```
-
-## Security Considerations
-
-### 1. Secure Boot Bypass
-```c
-// Disable secure boot verification
-static int verify_signature(const void *data, size_t len)
-{
-    // Always return success for NetHunter
-    return 0;
-}
-```
-
-### 2. Root Detection Bypass
-```c
-// Hide root from detection
-static int hide_root_check(void)
-{
-    // Modify system calls to hide root access
-    return 0;
-}
-```
-
-## Maintenance and Updates
-
-### 1. Regular Updates
-```bash
-# Update kernel source
-cd ~/android/kernel/kernel_xiaomi_lavender-4.19
-git pull origin main
-
-# Rebuild kernel
-cd ~/android/kernel/kali-nethunter-kernel-builder
-./build.sh
-```
-
-### 2. Version Management
-```bash
-# Tag releases
-git tag -a v1.0-nethunter -m "NetHunter kernel v1.0"
-git push origin v1.0-nethunter
-```
-
-## Credits and Community
-
-### Development Team
-- **Lead Developer**: 0xb0rn3 | 0xbv1
-- **Kernel Source**: Aeoniixx (AxionOS maintainer)
-- **Base ROM**: AxionOS Team
-- **TWRP**: lc-dev team
+### Official Documentation
+- [Kali NetHunter Documentation](https://www.kali.org/docs/nethunter/)
+- [NetHunter Kernel Builder](https://github.com/offensive-security/kali-nethunter-kernel)
+- [Android Kernel Development](https://source.android.com/docs/core/architecture/kernel)
 
 ### Community Resources
-- **Main Repository**: [0xb0rn3/NETHUNTER_REDMINOTE7](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7)
-- **Public Instructions**: Available in the repository README.md
-- **AxionOS Support**: [Aeoniixx Builds](https://github.com/Aeoniixx/Builds)
-- **TWRP Support**: [lc-dev SourceForge](https://sourceforge.net/projects/lc-dev/)
+- [XDA Developers Forum](https://forum.xda-developers.com/c/xiaomi-redmi-note-7.8402/)
+- [Kali NetHunter Community](https://forums.kali.org/forumdisplay.php?f=108)
+- [GitHub Issues](https://github.com/offensive-security/kali-nethunter-kernel/issues)
 
-### Support and Contributions
-- Report issues on the [GitHub repository](https://github.com/0xb0rn3/NETHUNTER_REDMINOTE7/issues)
-- Follow development updates on the repository
-- Contribute to the project through pull requests
-- Join community discussions for troubleshooting
+## ⚠️ Disclaimer
 
-### Legal Notice
-This project is for educational and research purposes only. Users are responsible for complying with local laws and regulations. The developers are not responsible for any misuse of this software.
+- **Warranty**: This process will void your device warranty
+- **Risk**: Flashing custom kernels can brick your device
+- **Legal**: Use NetHunter only for authorized testing
+- **Backup**: Always create full device backups before proceeding
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch
+3. Test thoroughly
+4. Submit pull request
+5. Update documentation
+
+## 📄 License
+
+This project follows the same license as the original kernel sources:
+- Linux Kernel: GPL v2
+- NetHunter Patches: GPL v2
+- Build Scripts: GPL v3
 
 ---
 
-**© 2025 0xb0rn3 | 0xbv1 - NetHunter Kernel for Redmi Note 7**
+**Created for educational and authorized security testing purposes only.**
