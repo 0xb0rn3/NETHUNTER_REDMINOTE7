@@ -91,13 +91,19 @@ export ANDROID_NDK_TOOLCHAIN=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-
 export PATH=${ANDROID_NDK_TOOLCHAIN}/bin:$PATH
 ```
 
-### 2. NetHunter Kernel Builder (Latest)
+### 2. NetHunter Kernel Builder (Latest - GitLab)
 ```bash
-# Clone latest NetHunter kernel builder
-git clone https://github.com/offensive-security/kali-nethunter-kernel.git
-cd kali-nethunter-kernel
+# Clone latest NetHunter project from GitLab (current official repo)
+git clone https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project.git
+cd kali-nethunter-project
 
 # Make executable
+chmod +x build.sh
+chmod +x bootstrap.sh
+
+# Alternative: Clone the kernel builder specifically
+git clone https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-kernel.git
+cd kali-nethunter-kernel
 chmod +x build.sh
 chmod +x bootstrap.sh
 ```
@@ -141,6 +147,8 @@ export HOSTLD=ld.lld
 
 ### 2. Device Configuration
 ```bash
+cd ~/nethunter-android15/kali-nethunter-project
+# OR
 cd ~/nethunter-android15/kali-nethunter-kernel
 
 # Create local.config for Android 15
@@ -204,6 +212,8 @@ make menuconfig
 
 ### 1. Apply NetHunter Patches
 ```bash
+cd ~/nethunter-android15/kali-nethunter-project
+# OR
 cd ~/nethunter-android15/kali-nethunter-kernel
 
 # Initialize build environment
@@ -234,6 +244,8 @@ make -j$(nproc) \
 
 ### 3. Create Flashable Package
 ```bash
+cd ~/nethunter-android15/kali-nethunter-project
+# OR
 cd ~/nethunter-android15/kali-nethunter-kernel
 
 # Build complete NetHunter package for Android 15
@@ -608,7 +620,8 @@ echo "1804800" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
 ### Official Documentation
 - [Kali NetHunter Docs](https://www.kali.org/docs/nethunter/)
 - [Android 15 Developer Guide](https://developer.android.com/about/versions/15)
-- [NetHunter Kernel Builder](https://github.com/offensive-security/kali-nethunter-kernel)
+- [NetHunter GitLab Project](https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project)
+- [NetHunter Kernel Builder](https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-kernel)
 
 ### Community Resources
 - [Team-420 NetHunter Kernel](https://github.com/Team-420/android_kernel_xiaomi_lavender)
