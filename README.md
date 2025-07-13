@@ -1,8 +1,7 @@
 # NetHunter Kernel Compilation Guide - Xiaomi Redmi Note 7 (Lavender)
 
-> **Updated build guide for Android 15 with current kernel version 4.19.321-S0NiX**
-> 
-> *Originally by 0xb0rn3 - Updated for Android 15 compatibility*
+Updated build guide for Android 15 with current kernel version 4.19.321-S0NiX  
+**By 0xb0rn3 | 0xbv1** - Updated for Android 15 compatibility
 
 ## 📱 Device Information (Current)
 
@@ -19,12 +18,14 @@
 ## 🚨 Important Notes for Android 15
 
 ### Critical Compatibility Issues
+
 - **Kernel Version**: Your device runs 4.19.321-S0NiX, which is compatible with NetHunter patches
 - **Clang Version**: Android 15 uses clang 19.0.1 - ensure toolchain compatibility
 - **Build Environment**: Requires Android 15 SDK (API 35) and updated NDK
 - **Security**: Android 15 has enhanced security features that may affect NetHunter functionality
 
 ### Prerequisites Update
+
 - **Minimum RAM**: 16GB (Android 15 build requirements)
 - **Storage**: 80GB+ free space
 - **Android 15 SDK**: API Level 35
@@ -34,15 +35,15 @@
 ## 🔧 Build Environment Setup
 
 ### System Requirements (Updated for 2025)
-```bash
-# Recommended Linux distributions for Android 15 builds
+
+Recommended Linux distributions for Android 15 builds:
 - Ubuntu 22.04 LTS or 24.04 LTS
 - Arch Linux (rolling release)
 - Fedora 39+
 - openSUSE Tumbleweed
-```
 
 ### Ubuntu 22.04/24.04 LTS Setup
+
 ```bash
 # Update system
 sudo apt update && sudo apt upgrade -y
@@ -60,6 +61,7 @@ sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-19 
 ```
 
 ### Arch Linux Setup
+
 ```bash
 # Update system
 sudo pacman -Syu
@@ -76,6 +78,7 @@ yay -S android-ndk android-sdk-build-tools
 ## 📦 Source Code and Toolchain
 
 ### 1. Android 15 NDK Setup
+
 ```bash
 # Create build directory
 mkdir -p ~/nethunter-android15
@@ -92,23 +95,20 @@ export PATH=${ANDROID_NDK_TOOLCHAIN}/bin:$PATH
 ```
 
 ### 2. NetHunter Kernel Builder (Latest - GitLab)
+
 ```bash
 # Clone latest NetHunter project from GitLab (current official repo)
 git clone https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project.git
-cd kali-nethunter-project
-
-# Make executable
-chmod +x build.sh
-chmod +x bootstrap.sh
 
 # Alternative: Clone the kernel builder specifically
-git clone https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-kernel.git
-cd kali-nethunter-kernel
+git clone https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-kernel.git kali-nethunter-kernel-builder
+cd kali-nethunter-kernel-builder
 chmod +x build.sh
 chmod +x bootstrap.sh
 ```
 
 ### 3. Kernel Source for Android 15
+
 ```bash
 # Use Team-420's proven NetHunter kernel source
 git clone https://github.com/Team-420/android_kernel_xiaomi_lavender.git -b Nethunter kernel_lavender
@@ -120,6 +120,7 @@ git clone https://github.com/Team-420/android_kernel_xiaomi_lavender.git -b Neth
 ## ⚙️ Configuration for Android 15
 
 ### 1. Environment Variables
+
 ```bash
 # Export Android 15 specific variables
 export ANDROID_MAJOR_VERSION=15
@@ -146,10 +147,9 @@ export HOSTLD=ld.lld
 ```
 
 ### 2. Device Configuration
+
 ```bash
-cd ~/nethunter-android15/kali-nethunter-project
-# OR
-cd ~/nethunter-android15/kali-nethunter-kernel
+cd ~/nethunter-android15/kali-nethunter-kernel-builder
 
 # Create local.config for Android 15
 cat > local.config << 'EOF'
@@ -189,7 +189,227 @@ USE_CCACHE=true
 EOF
 ```
 
-### 3. Kernel Configuration
+### 3. Fix Missing Aircrack Drivers
+
+Based on the error output, the NetHunter patches are partially applied but missing the actual RTL8812AU driver. Here's the fix:
+
+```bash
+# Check current state
+cd ~/nethunter-android15/kernel_lavender
+ls -la drivers/aircrack/
+
+# You should see rtl8188eus, rtl8188fu, rtl8192eu but missing rtl8812au
+# Let's add the missing RTL8812AU driver
+
+# Create the missing RTL8812AU driver directory
+mkdir -p drivers/aircrack/rtl8812au
+
+# Clone the RTL8812AU driver
+cd drivers/aircrack/rtl8812au
+git clone https://github.com/aircrack-ng/rtl8812au.git .
+git checkout v5.6.4.2  # Use stable version
+
+# Create the missing Kconfig file
+cat > Kconfig << 'EOF'
+config RTL8812AU
+    tristate "Realtek RTL8812AU/RTL8821AU USB AC WiFi Adapter"
+    depends on USB && WLAN
+    select WIRELESS_EXT
+    select WEXT_PRIV
+    default m
+    help
+      This option enables support for Realtek RTL8812AU/RTL8821AU USB AC WiFi adapters.
+      
+      This driver supports monitor mode and packet injection for NetHunter.
+      
+      If you want to use this driver, say M here and it will be compiled as a module.
+EOF
+
+# Update the Makefile
+cat > Makefile << 'EOF'
+# Makefile for RTL8812AU driver
+obj-$(CONFIG_RTL8812AU) += rtl8812au.o
+
+# Core objects
+rtl8812au-objs := \
+    core/rtw_cmd.o \
+    core/rtw_security.o \
+    core/rtw_debug.o \
+    core/rtw_io.o \
+    core/rtw_ioctl_query.o \
+    core/rtw_ioctl_set.o \
+    core/rtw_ieee80211.o \
+    core/rtw_mlme.o \
+    core/rtw_mlme_ext.o \
+    core/rtw_mi.o \
+    core/rtw_wlan_util.o \
+    core/rtw_vht.o \
+    core/rtw_pwrctrl.o \
+    core/rtw_rf.o \
+    core/rtw_recv.o \
+    core/rtw_sta_mgt.o \
+    core/rtw_ap.o \
+    core/rtw_xmit.o \
+    core/rtw_p2p.o \
+    core/rtw_tdls.o \
+    core/rtw_br_ext.o \
+    core/rtw_iol.o \
+    core/rtw_sreset.o \
+    core/rtw_btcoex.o \
+    core/rtw_beamforming.o \
+    core/rtw_odm.o \
+    core/efuse/rtw_efuse.o
+
+# HAL objects
+rtl8812au-objs += \
+    hal/hal_intf.o \
+    hal/hal_com.o \
+    hal/hal_com_phycfg.o \
+    hal/hal_phy.o \
+    hal/hal_dm.o \
+    hal/hal_btcoex.o \
+    hal/hal_mp.o \
+    hal/hal_mcc.o \
+    hal/hal_hci/hal_usb.o
+
+# Platform objects
+rtl8812au-objs += \
+    os_dep/osdep_service.o \
+    os_dep/linux/os_intfs.o \
+    os_dep/linux/usb_intf.o \
+    os_dep/linux/usb_ops.o \
+    os_dep/linux/ioctl_linux.o \
+    os_dep/linux/xmit_linux.o \
+    os_dep/linux/mlme_linux.o \
+    os_dep/linux/recv_linux.o \
+    os_dep/linux/ioctl_cfg80211.o \
+    os_dep/linux/rtw_cfgvendor.o \
+    os_dep/linux/wifi_regd.o \
+    os_dep/linux/rtw_android.o \
+    os_dep/linux/rtw_proc.o \
+    os_dep/linux/rtw_rhashtable.o
+
+# Chip specific objects
+rtl8812au-objs += \
+    hal/rtl8812a/rtl8812a_hal_init.o \
+    hal/rtl8812a/rtl8812a_phycfg.o \
+    hal/rtl8812a/rtl8812a_rf6052.o \
+    hal/rtl8812a/rtl8812a_dm.o \
+    hal/rtl8812a/rtl8812a_rxdesc.o \
+    hal/rtl8812a/rtl8812a_cmd.o \
+    hal/rtl8812a/usb/usb_halinit.o \
+    hal/rtl8812a/usb/rtl8812au_led.o \
+    hal/rtl8812a/usb/rtl8812au_xmit.o \
+    hal/rtl8812a/usb/rtl8812au_recv.o
+
+# PHY objects
+rtl8812au-objs += \
+    hal/phydm/phydm_debug.o \
+    hal/phydm/phydm_antdiv.o \
+    hal/phydm/phydm_soml.o \
+    hal/phydm/phydm_smt_ant.o \
+    hal/phydm/phydm_antdect.o \
+    hal/phydm/phydm_interface.o \
+    hal/phydm/phydm_phystatus.o \
+    hal/phydm/phydm_hwconfig.o \
+    hal/phydm/phydm.o \
+    hal/phydm/phydm_dig.o \
+    hal/phydm/phydm_pathdiv.o \
+    hal/phydm/phydm_rainfo.o \
+    hal/phydm/phydm_dynamictxpower.o \
+    hal/phydm/phydm_adaptivity.o \
+    hal/phydm/phydm_dfs.o \
+    hal/phydm/phydm_ccx.o \
+    hal/phydm/phydm_psd.o \
+    hal/phydm/phydm_primary_cca.o \
+    hal/phydm/phydm_cfotracking.o \
+    hal/phydm/phydm_adc_sampling.o \
+    hal/phydm/phydm_kfree.o \
+    hal/phydm/phydm_cleancenter.o \
+    hal/phydm/phydm_noisemonitor.o \
+    hal/phydm/phydm_beamforming.o \
+    hal/phydm/phydm_direct_bf.o \
+    hal/phydm/phydm_auto_dbg.o \
+    hal/phydm/phydm_math_lib.o \
+    hal/phydm/phydm_api.o \
+    hal/phydm/phydm_pow_train.o \
+    hal/phydm/phydm_lna_sat.o \
+    hal/phydm/phydm_pmac_tx_setting.o \
+    hal/phydm/phydm_mp.o \
+    hal/phydm/phydm_pre_defined.o \
+    hal/phydm/halrf/halrf.o \
+    hal/phydm/halrf/halrf_debug.o \
+    hal/phydm/halrf/halphyrf_ce.o \
+    hal/phydm/halrf/halrf_powertracking_ce.o \
+    hal/phydm/halrf/halrf_powertracking.o \
+    hal/phydm/halrf/halrf_kfree.o \
+    hal/phydm/halrf/halrf_psd.o \
+    hal/phydm/rtl8812a/halhwimg8812a_bb.o \
+    hal/phydm/rtl8812a/halhwimg8812a_mac.o \
+    hal/phydm/rtl8812a/halhwimg8812a_rf.o \
+    hal/phydm/rtl8812a/phydm_regconfig8812a.o \
+    hal/phydm/rtl8812a/phydm_rtl8812a.o \
+    hal/phydm/rtl8812a/halrf/halrf_8812a_ce.o
+
+ccflags-y += -DCONFIG_RTL8812AU=1
+ccflags-y += -DCONFIG_IOCTL_CFG80211=1
+ccflags-y += -DCONFIG_CONCURRENT_MODE=1
+ccflags-y += -DCONFIG_PLATFORM_I386_PC=1
+ccflags-y += -DCONFIG_WIFI_MONITOR=1
+ccflags-y += -DCONFIG_WIFI_INJECT_FRAME=1
+ccflags-y += -DRTW_USE_CFG80211_STA_EVENT=1
+ccflags-y += -Wno-unused-variable
+ccflags-y += -Wno-unused-value
+ccflags-y += -Wno-unused-label
+ccflags-y += -Wno-unused-parameter
+ccflags-y += -Wno-unused-function
+ccflags-y += -Wno-unused
+ccflags-y += -Wno-uninitialized
+ccflags-y += -I$(src)/include
+EOF
+
+# Go back to kernel root
+cd ~/nethunter-android15/kernel_lavender
+```
+
+### 4. Alternative: Quick Fix (Temporary)
+
+If you want to quickly bypass the issue temporarily:
+
+```bash
+cd ~/nethunter-android15/kernel_lavender
+
+# Comment out the problematic line temporarily
+sed -i 's/source "drivers\/aircrack\/rtl8812au\/Kconfig"/# source "drivers\/aircrack\/rtl8812au\/Kconfig"/' drivers/Kconfig
+sed -i 's/obj-y.*+= aircrack\/rtl8812au\//# obj-y += aircrack\/rtl8812au\//' drivers/Makefile
+
+# Now try making the defconfig
+make lavender_defconfig
+```
+
+## 🔨 Build Process
+
+### 1. Apply NetHunter Patches (Proper Method)
+
+```bash
+cd ~/nethunter-android15/kali-nethunter-kernel-builder
+
+# Initialize build environment
+./bootstrap.sh
+
+# Apply patches for kernel 4.19.321
+./build.sh --patch-only --device lavender --kernel-version 4.19
+```
+
+### 2. Build Using NetHunter Kernel Builder
+
+```bash
+# Build NetHunter kernel for Android 15
+./build.sh --device lavender --kernel-only --android-version 15
+```
+
+### 3. Manual Build Alternative
+
 ```bash
 cd ~/nethunter-android15/kernel_lavender
 
@@ -204,32 +424,7 @@ export CLANG_TRIPLE=aarch64-linux-gnu-
 # Generate configuration
 make lavender_defconfig
 
-# Optional: Manual configuration for Android 15 compatibility
-make menuconfig
-```
-
-## 🔨 Build Process
-
-### 1. Apply NetHunter Patches
-```bash
-cd ~/nethunter-android15/kali-nethunter-project
-# OR
-cd ~/nethunter-android15/kali-nethunter-kernel
-
-# Initialize build environment
-./bootstrap.sh
-
-# Apply patches for kernel 4.19.321
-./build.sh --patch-only --device lavender --kernel-version 4.19
-```
-
-### 2. Compile Kernel
-```bash
-# Build NetHunter kernel
-./build.sh --device lavender --kernel-only --android-version 15
-
-# Manual build alternative
-cd ~/nethunter-android15/kernel_lavender
+# Build kernel
 make -j$(nproc) \
     ARCH=arm64 \
     SUBARCH=arm64 \
@@ -242,11 +437,10 @@ make -j$(nproc) \
     Image.gz-dtb modules
 ```
 
-### 3. Create Flashable Package
+### 4. Create Flashable Package
+
 ```bash
-cd ~/nethunter-android15/kali-nethunter-project
-# OR
-cd ~/nethunter-android15/kali-nethunter-kernel
+cd ~/nethunter-android15/kali-nethunter-kernel-builder
 
 # Build complete NetHunter package for Android 15
 ./build.sh --device lavender --full --android-version 15
@@ -258,6 +452,7 @@ ls -la releases/nethunter-*-lavender-android15*.zip
 ## 🚀 Installation (Android 15)
 
 ### 1. Device Preparation
+
 ```bash
 # Enable Developer Options
 # Enable USB Debugging
@@ -272,7 +467,8 @@ fastboot flashing unlock
 
 ### 2. Backup Current Kernel (CRITICAL STEP)
 
-#### Method 1: Using dd command (Recommended)
+**Method 1: Using dd command (Recommended)**
+
 ```bash
 # Boot to TWRP recovery first
 adb reboot recovery
@@ -297,131 +493,23 @@ ls -la ./kernel_backup/
 # Should show: boot_stock.img, recovery_stock.img, dtbo_stock.img
 ```
 
-#### Method 2: Using TWRP Built-in Backup
-```bash
-# In TWRP Recovery:
-# 1. Tap "Backup"
-# 2. Select "Boot" partition
-# 3. Select "Recovery" partition  
-# 4. Select "System" partition (optional but recommended)
-# 5. Swipe to backup
-# 6. Wait for completion
+**Method 2: Using TWRP Built-in Backup**
 
+In TWRP Recovery:
+1. Tap "Backup"
+2. Select "Boot" partition
+3. Select "Recovery" partition  
+4. Select "System" partition (optional but recommended)
+5. Swipe to backup
+6. Wait for completion
+
+```bash
 # Copy TWRP backup to PC
 adb pull /sdcard/TWRP/BACKUPS/ ./twrp_backup/
 ```
 
-#### Method 3: Fastboot Method (Alternative)
-```bash
-# Boot to fastboot mode
-adb reboot bootloader
+### 3. Custom Recovery (TWRP)
 
-# Backup boot partition
-fastboot getvar partition-size:boot
-fastboot boot twrp-3.7.0_12-0-lavender.img
-
-# Once in TWRP, use Method 1 above
-```
-
-### 3. Create Flashable Stock Kernel ZIP (Recovery Method)
-```bash
-# Download AnyKernel3 template
-git clone https://github.com/osm0sis/AnyKernel3.git stock_kernel_flashable
-cd stock_kernel_flashable
-
-# Extract kernel from backup
-mkdir -p kernel_extract
-cd kernel_extract
-
-# Extract boot.img (requires Android Image Kitchen or similar)
-# Download Android Image Kitchen
-wget https://github.com/osm0sis/Android-Image-Kitchen/archive/refs/heads/master.zip
-unzip master.zip
-cd Android-Image-Kitchen-master
-
-# Extract your stock boot.img
-./unpackimg.sh ../../../kernel_backup/boot_stock.img
-
-# Copy kernel and dtb files
-cp split_img/boot_stock.img-kernel ../../../stock_kernel_flashable/
-cp split_img/boot_stock.img-dtb ../../../stock_kernel_flashable/
-cp split_img/boot_stock.img-dtbo ../../../stock_kernel_flashable/
-
-# Update AnyKernel3 script
-cd ../../../stock_kernel_flashable
-cat > anykernel.sh << 'EOF'
-#!/sbin/sh
-# AnyKernel3 Script for Stock Kernel Restore
-# Xiaomi Redmi Note 7 (lavender) - Android 15
-
-## AnyKernel setup
-# begin properties
-properties() { '
-kernel.string=Stock Kernel Restore for Redmi Note 7
-do.devicecheck=1
-do.modules=0
-do.systemless=0
-do.cleanup=1
-do.cleanuponabort=0
-device.name1=lavender
-device.name2=Redmi Note 7
-device.name3=
-device.name4=
-device.name5=
-supported.versions=
-supported.patchlevels=
-'; } # end properties
-
-# shell variables
-block=/dev/block/bootdevice/by-name/boot;
-is_slot_device=0;
-ramdisk_compression=auto;
-
-## AnyKernel methods (DO NOT CHANGE)
-# import patching functions/variables - see for reference
-. tools/ak3-core.sh;
-
-## AnyKernel file attributes
-# set permissions/ownership for included ramdisk files
-set_perm_recursive 0 0 755 644 $ramdisk/*;
-set_perm_recursive 0 0 750 750 $ramdisk/init* $ramdisk/sbin;
-
-## AnyKernel install
-dump_boot;
-write_boot;
-## end install
-EOF
-
-# Create flashable ZIP
-zip -r9 ../stock_kernel_restore_lavender.zip * -x .git README.md *placeholder
-cd ..
-
-# Copy to device for emergency use
-adb push stock_kernel_restore_lavender.zip /sdcard/
-```
-
-### 4. Emergency Recovery Instructions
-```bash
-# If NetHunter kernel causes bootloop:
-
-# Method 1: Flash stock kernel ZIP in TWRP
-# 1. Boot to TWRP: Hold Volume Up + Power
-# 2. Install > Select stock_kernel_restore_lavender.zip
-# 3. Flash and reboot
-
-# Method 2: Fastboot flash original boot.img
-# 1. Boot to fastboot: Hold Volume Down + Power
-# 2. fastboot flash boot kernel_backup/boot_stock.img
-# 3. fastboot reboot
-
-# Method 3: TWRP restore
-# 1. Boot to TWRP
-# 2. Restore > Select backup
-# 3. Select Boot partition
-# 4. Swipe to restore
-```
-
-### 2. Custom Recovery (TWRP)
 ```bash
 # Download latest TWRP for lavender
 wget https://dl.twrp.me/lavender/twrp-3.7.0_12-0-lavender.img
@@ -431,10 +519,10 @@ fastboot flash recovery twrp-3.7.0_12-0-lavender.img
 fastboot boot twrp-3.7.0_12-0-lavender.img
 
 # IMPORTANT: Perform kernel backup BEFORE proceeding to NetHunter installation
-# See "Backup Current Kernel" section above
 ```
 
-### 3. Install NetHunter
+### 4. Install NetHunter
+
 ```bash
 # VERIFY BACKUP COMPLETED SUCCESSFULLY BEFORE PROCEEDING
 ls -la kernel_backup/
@@ -442,15 +530,16 @@ ls -la kernel_backup/
 
 # Copy NetHunter package to device
 adb push releases/nethunter-*-lavender-android15*.zip /sdcard/
-
-# In TWRP:
-# 1. Wipe > Advanced Wipe > Dalvik/ART Cache, Cache
-# 2. Install > Select NetHunter ZIP
-# 3. Flash and reboot system
-# 4. If bootloop occurs, use emergency recovery methods above
 ```
 
-### 4. Install Magisk (Required for Android 15)
+In TWRP:
+1. Wipe > Advanced Wipe > Dalvik/ART Cache, Cache
+2. Install > Select NetHunter ZIP
+3. Flash and reboot system
+4. If bootloop occurs, use emergency recovery methods
+
+### 5. Install Magisk (Required for Android 15)
+
 ```bash
 # Download latest Magisk
 wget https://github.com/topjohnwu/Magisk/releases/latest/download/Magisk-v27.0.apk
@@ -466,6 +555,7 @@ adb install nethunter-app.apk
 ## 🔍 Verification
 
 ### 1. Check Kernel
+
 ```bash
 # Verify NetHunter kernel is loaded
 adb shell cat /proc/version
@@ -476,6 +566,7 @@ adb shell lsmod | grep -i nethunter
 ```
 
 ### 2. Test NetHunter Features
+
 ```bash
 # Check HID support
 adb shell ls /dev/hidg*
@@ -494,21 +585,21 @@ adb shell iw dev
 
 ### Emergency Recovery Procedures
 
-#### 1. Bootloop After NetHunter Installation
-```bash
-# Immediate Steps:
-# 1. Force reboot: Hold Power + Volume Up for 10 seconds
-# 2. Boot to TWRP: Hold Volume Up + Power during boot
-# 3. Flash stock kernel restore ZIP
-# 4. Or restore TWRP backup
+**1. Bootloop After NetHunter Installation**
 
-# If TWRP is inaccessible:
-# 1. Boot to fastboot: Hold Volume Down + Power
-# 2. fastboot flash boot kernel_backup/boot_stock.img
-# 3. fastboot reboot
-```
+Immediate Steps:
+1. Force reboot: Hold Power + Volume Up for 10 seconds
+2. Boot to TWRP: Hold Volume Up + Power during boot
+3. Flash stock kernel restore ZIP
+4. Or restore TWRP backup
 
-#### 2. Kernel Panic or Boot Issues
+If TWRP is inaccessible:
+1. Boot to fastboot: Hold Volume Down + Power
+2. `fastboot flash boot kernel_backup/boot_stock.img`
+3. `fastboot reboot`
+
+**2. Kernel Panic or Boot Issues**
+
 ```bash
 # Check boot logs in TWRP
 adb shell dmesg | grep -i "panic\|error\|fail"
@@ -519,18 +610,18 @@ fastboot flash dtbo kernel_backup/dtbo_stock.img
 fastboot reboot
 ```
 
-#### 3. Recovery Mode Issues
+**3. Recovery Mode Issues**
+
 ```bash
 # Re-flash TWRP if corrupted
 fastboot flash recovery twrp-3.7.0_12-0-lavender.img
 fastboot boot twrp-3.7.0_12-0-lavender.img
-
-# If fastboot doesn't work, use EDL mode (advanced users only)
 ```
 
 ### Common Issues
 
-#### 1. SELinux Denials
+**1. SELinux Denials**
+
 ```bash
 # Set SELinux to permissive (temporary)
 adb shell su -c "setenforce 0"
@@ -539,13 +630,12 @@ adb shell su -c "setenforce 0"
 adb shell dmesg | grep -i selinux
 ```
 
-#### 2. Magisk Module Issues
-```bash
-# Reinstall Magisk if NetHunter doesn't work
-# Flash Magisk.zip in TWRP after NetHunter installation
-```
+**2. Magisk Module Issues**
 
-#### 3. Build Errors
+Reinstall Magisk if NetHunter doesn't work - Flash Magisk.zip in TWRP after NetHunter installation
+
+**3. Build Errors**
+
 ```bash
 # Clean build
 cd ~/nethunter-android15/kernel_lavender
@@ -556,7 +646,8 @@ make mrproper
 make -j$(nproc) V=1
 ```
 
-#### 4. Android 15 Compatibility
+**4. Android 15 Compatibility**
+
 ```bash
 # Check for Android 15 specific patches
 grep -r "ANDROID_VERSION" kernel_lavender/
@@ -566,6 +657,7 @@ grep -r "API_LEVEL" kernel_lavender/
 ## 📱 Android 15 Chroot Setup
 
 ### 1. Download ARM64 Chroot
+
 ```bash
 # Download minimal ARM64 chroot for Android 15
 wget https://kali.org/get-kali/kali-nethunter/images/kalifs-arm64-minimal.tar.xz
@@ -575,17 +667,17 @@ adb push kalifs-arm64-minimal.tar.xz /sdcard/
 ```
 
 ### 2. Install via NetHunter App
-```bash
-# Open NetHunter App
-# Navigate to Kali Chroot Manager
-# Select "Install Chroot"
-# Choose downloaded chroot file
-# Wait for installation to complete
-```
+
+1. Open NetHunter App
+2. Navigate to Kali Chroot Manager
+3. Select "Install Chroot"
+4. Choose downloaded chroot file
+5. Wait for installation to complete
 
 ## 🔧 Advanced Configuration
 
 ### 1. Custom Kernel Modules
+
 ```bash
 # Build additional wireless modules
 cd ~/nethunter-android15/kernel_lavender
@@ -607,6 +699,7 @@ make -j$(nproc) \
 ```
 
 ### 2. Performance Optimization
+
 ```bash
 # Enable performance governor
 echo "performance" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
@@ -620,13 +713,13 @@ echo "1804800" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
 ### Official Documentation
 - [Kali NetHunter Docs](https://www.kali.org/docs/nethunter/)
 - [Android 15 Developer Guide](https://developer.android.com/about/versions/15)
-- [NetHunter GitLab Project](https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project)
+- [NetHunter GitLab Project](https://gitlab.com/kalilinux/nethunter)
 - [NetHunter Kernel Builder](https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-kernel)
 
 ### Community Resources
 - [Team-420 NetHunter Kernel](https://github.com/Team-420/android_kernel_xiaomi_lavender)
-- [XDA Developers](https://forum.xda-developers.com/c/xiaomi-redmi-note-7.8402/)
-- [Kali Forums](https://forums.kali.org/forumdisplay.php?f=108)
+- [XDA Developers](https://forum.xda-developers.com/c/xiaomi-redmi-note-7.8434/)
+- [Kali Forums](https://forums.kali.org/forumdisplay.php?30-Kali-NetHunter)
 
 ## ⚠️ Disclaimer
 
@@ -645,13 +738,13 @@ echo "1804800" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
 
 ## 📄 License
 
-- Linux Kernel: GPL v2
-- NetHunter Patches: GPL v2
-- Build Scripts: GPL v3
+- **Linux Kernel**: GPL v2
+- **NetHunter Patches**: GPL v2
+- **Build Scripts**: GPL v3
 
 ---
 
-**Updated for Android 15 compatibility - Created by 0xb0rn3**
-**Last Updated: July 2025**
-
-**Device Tested: Xiaomi Redmi Note 7 (lavender) - Android 15 - Kernel 4.19.321-S0NiX**
+**Updated for Android 15 compatibility**  
+**Created by 0xb0rn3 | 0xbv1**  
+**Last Updated**: July 2025  
+**Device Tested**: Xiaomi Redmi Note 7 (lavender) - Android 15 - Kernel 4.19.321-S0NiX
